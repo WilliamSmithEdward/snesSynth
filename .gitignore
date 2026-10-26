@@ -1,0 +1,78 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Local environment, credentials, and editor settings.
+.env
+.env.*
+!.env.example
+.aws/
+.ssh/
+.codex/
+.agents/
+.idea/
+.vscode/
+*.pem
+*.key
+
+# Local game content and reports containing ROM/song/instrument data.
+# Keep these directories private even when files use an unexpected extension.
+output/
+roms/
+exports/
+extracted/
+dumps/
+captures/
+soundtracks/
+samples/
+soundfonts/
+
+# Downloaded upstream code, tools, archives, and local research copies.
+tools/cache/
+tools/research/
+
+# ROMs and compressed game/audio collections (any extension capitalization).
+*.[sS][fF][cC]
+*.[sS][mM][cC]
+*.[fF][iI][gG]
+*.[sS][wW][cC]
+*.[sS][nN][eE][sS]
+*.[rR][oO][mM]
+*.[rR][sS][nN]
+*.[zZ][iI][pP]
+*.7[zZ]
+*.[rR][aA][rR]
+*.[sS][fF][cC].*
+*.[sS][mM][cC].*
+
+# Audio processor snapshots, original sample bytes, and instrument banks.
+*.[sS][pP][cC]
+*.[sS][pP][cC].*
+*.[bB][rR][rR]
+*.[bB][iI][nN]
+*.[aA][rR][aA][mM]
+*.[sS][fF]2
+*.[sS][fF]3
+*.[dD][lL][sS]
+*.[sS][fF][zZ]
+
+# Extracted scores and recordings, including copies outside output/.
+*.[mM][iI][dD]
+*.[mM][iI][dD][iI]
+*.[wW][aA][vV]
+*.[fF][lL][aA][cC]
+*.[aA][iI][fF]
+*.[aA][iI][fF][fF]
+*.[oO][gG][gG]
+*.[mM][pP]3
+*.[mM]4[aA]
+
+# Emulator saves can contain game RAM, samples, and sequence data.
+*.[sS][rR][mM]
+*.[sS][aA][vV]
+*.[sS][tT][aA][tT][eE]
+*.[sS][nN][sS]
+*.[zZ][sS][0-9]

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "snes-synth"
+version = "0.1.0"
+description = "Extract SNES music as original SPC playback, MIDI and reusable SoundFonts"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+snes-synth = "snes_synth.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["snes_synth*"]
