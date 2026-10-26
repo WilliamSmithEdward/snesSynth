@@ -7,10 +7,10 @@ import hashlib
 import json
 import math
 from pathlib import Path
-import shutil
 from typing import Callable
 
 from . import __version__
+from .drivers import find_driver, supported_games
 from .midi import inspect_midi
 from .rom import inspect_rom, is_spc, read_source, strip_copier_header
 from .soundfont import export_samples, safe_name
@@ -18,7 +18,7 @@ from .soundfont import export_samples, safe_name
 
 QUALITY_NOTES = [
     "Master WAVs use accurate SPC700/S-DSP emulation at the native 32000 Hz, stereo, 16-bit PCM; no resampling or normalization.",
-    "Auto WAV length uses the converted sequence duration plus a 2.25-second startup/tail allowance and the selected fade. FF4 tempo ramps receive a conservative timing allowance. Loop boundaries are not inferred from audio.",
+    "Auto WAV length uses the converted sequence duration plus a 2.25-second startup/tail allowance and the selected fade. Supported tempo ramps receive a conservative timing allowance. Loop boundaries are not inferred from audio.",
     "SPC preserves the original driver and sound state. MIDI/SF2 is an editable conversion; chip echo, noise, pitch modulation and some driver effects may differ.",
     "SF2 contains the playable instrument bank. Sample WAVs and instruments.json expose its PCM and bank/program inventory.",
 ]
@@ -32,18 +32,19 @@ def analyze(path: Path) -> dict:
         report.update(driver="SPC snapshot (VGMTrans driver detection during export)",
                       supported=True, track_count=1, tracks=[{"id": 0, "title": report["title"], "category": "snapshot"}])
         return report
-    from .drivers import ff4
     rom, _ = strip_copier_header(data)
-    if ff4.detect(rom):
-        details = ff4.analyze(rom)
+    driver = find_driver(rom)
+    if driver is not None:
+        details = driver.analyze(rom)
         report["cartridge_title"] = report["title"]
         report.update(details)
+        report["driver_id"] = driver.__name__.rsplit(".", 1)[-1]
         report["title"] = details.get("game", report["title"])
         report["supported"] = True
     else:
         report.update(driver="Unrecognized ROM sound driver", supported=False, track_count=0, tracks=[])
         report["warnings"].append(
-            "Automatic ROM loading currently supports the validated FF4/FF2 US layout. "
+            "Automatic ROM loading currently supports these validated layouts: " + "; ".join(supported_games()) + ". "
             "For other games, save each song as an SPC in an emulator and open that SPC here. "
             "VGMTrans supports many additional SPC sound drivers."
         )
@@ -103,6 +104,9 @@ def extract(source: Path, output: Path, *, duration: float | None = None, fade: 
         available = {item["id"] for item in info.get("tracks", [])}
         if not set(tracks) <= available:
             raise ValueError(f"Track IDs not present in this input: {sorted(set(tracks) - available)}")
+    data = read_source(source)
+    if hashlib.sha256(data).hexdigest() != info["sha256"]:
+        raise RuntimeError("The input changed after analysis. Analyze it again before extraction.")
     output.mkdir(parents=True, exist_ok=True)
     warnings = list(info.get("warnings", [])) + QUALITY_NOTES.copy()
     if stems:
@@ -116,17 +120,18 @@ def extract(source: Path, output: Path, *, duration: float | None = None, fade: 
     manifest_path = output / "manifest.json"
     _write_json(manifest_path, manifest)
     emit(f"Loading {info['title']} | {info['driver']}")
-    data = read_source(source)
     if is_spc(data):
         folder = output / "spc"
         folder.mkdir()
         spc = folder / f"{safe_name(info['title'])}.spc"
-        shutil.copyfile(source, spc)
+        spc.write_bytes(data)
         items = [{"id": 0, "title": info["title"], "category": "snapshot", "spc": spc}]
     else:
-        from .drivers import ff4
         rom, _ = strip_copier_header(data)
-        items = ff4.extract(rom, output / "spc", tracks=tracks)
+        driver = find_driver(rom)
+        if driver is None:
+            raise ValueError("The ROM's audio driver is no longer recognized. Analyze the source again.")
+        items = driver.extract(rom, output / "spc", tracks=tracks)
     emit(f"Loaded {len(items)} SPC snapshots. Rendering stereo masters and converting scores/banks...")
     for index, item in enumerate(items, 1):
         entry = dict(item)

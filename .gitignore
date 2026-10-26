@@ -21,6 +21,7 @@ dist/
 # Local game content and reports containing ROM/song/instrument data.
 # Keep these directories private even when files use an unexpected extension.
 output/
+rom/
 roms/
 exports/
 extracted/

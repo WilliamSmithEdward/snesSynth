@@ -13,6 +13,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
+from .soundfont import safe_name
+
 
 BG = "#11141c"
 PANEL = "#1a1f2b"
@@ -21,6 +23,26 @@ INK = "#edf0f8"
 MUTED = "#a2aec4"
 ACCENT = "#9cf0cb"
 LINE = "#333d50"
+INPUT_SUFFIXES = frozenset({".sfc", ".smc", ".fig", ".swc", ".snes", ".rom", ".spc"})
+
+
+def _default_source(workspace: Path) -> Path | None:
+    """Prefer a unique private input; ambiguity always requires a selection."""
+    workspace = Path(workspace)
+    for folder in (workspace / "rom", workspace):
+        try:
+            candidates = [path for path in folder.iterdir()
+                          if path.is_file() and path.suffix.lower() in INPUT_SUFFIXES]
+        except OSError:
+            continue
+        if candidates:
+            return candidates[0].resolve() if len(candidates) == 1 else None
+    return None
+
+
+def _default_output(workspace: Path, source: Path | None) -> Path:
+    name = safe_name(source.stem, "soundtrack") if source is not None else "soundtrack"
+    return Path(workspace) / "output" / name
 
 
 def _track_ids(value: str) -> list[int] | None:
@@ -51,10 +73,11 @@ class SynthApp:
         self.busy = False
         self.controls: list[tuple[ttk.Widget, str]] = []
         self.last_output: Path | None = None
+        self.workspace = Path.cwd().resolve()
 
-        default_source = Path.cwd() / "game.sfc"
-        self.source = tk.StringVar(value=str(default_source) if default_source.exists() else "")
-        self.output = tk.StringVar(value=str(Path.cwd() / "output" / "game"))
+        default_source = _default_source(self.workspace)
+        self.source = tk.StringVar(value=str(default_source) if default_source is not None else "")
+        self.output = tk.StringVar(value=str(_default_output(self.workspace, default_source)))
         self.duration = tk.StringVar(value="auto")
         self.fade = tk.StringVar(value="8")
         self.tracks = tk.StringVar()
@@ -195,11 +218,12 @@ class SynthApp:
     def _pick_source(self) -> None:
         selected = filedialog.askopenfilename(
             title="Choose a SNES ROM or SPC file",
-            filetypes=[("SNES ROM / audio", "*.sfc *.smc *.spc"), ("All files", "*.*")])
+            initialdir=str(self.workspace / "rom" if (self.workspace / "rom").is_dir() else self.workspace),
+            filetypes=[("SNES ROM / audio", "*.sfc *.smc *.fig *.swc *.snes *.rom *.spc"), ("All files", "*.*")])
         if selected:
             source = Path(selected)
             self.source.set(str(source))
-            self.output.set(str(source.parent / "output" / source.stem))
+            self.output.set(str(_default_output(self.workspace, source)))
 
     def _pick_output(self) -> None:
         selected = filedialog.askdirectory(title="Choose an export folder", mustexist=False)
@@ -236,8 +260,9 @@ class SynthApp:
             fade = float(self.fade.get())
             if duration is not None and (not math.isfinite(duration) or not 0 < duration <= 3600):
                 raise ValueError("Length must be auto or a number of seconds greater than zero and at most 3600.")
-            if not math.isfinite(fade) or fade < 0 or fade > (duration if duration is not None else 3600):
-                raise ValueError("Fade must be nonnegative and no longer than the selected length (at most 3600 seconds).")
+            fade_limit = duration if duration is not None else 60
+            if not math.isfinite(fade) or not 0 <= fade <= fade_limit:
+                raise ValueError("Fade must be between zero and the selected length; auto length allows at most 60 seconds.")
             tracks = _track_ids(self.tracks.get())
             stems = self.stems.get()
         except (ValueError, OSError) as exc:

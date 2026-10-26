@@ -16,6 +16,12 @@ from snes_synth.pipeline import analyze, extract
 from snes_synth.rom import MAX_ROM_SIZE, inspect_rom, read_source, strip_copier_header, validate_spc
 from snes_synth.soundfont import export_samples, safe_name
 
+try:
+    from snes_synth.gui import _default_output, _default_source
+except ImportError:
+    # Tk is optional for CLI-only installations; these helpers never create a window.
+    _default_output = _default_source = None
+
 
 def midi_bytes(track: bytes, *, kind: int = 0, count: int = 1) -> bytes:
     return (b"MThd" + struct.pack(">IHHH", 6, kind, count, 480)
@@ -218,6 +224,42 @@ class ExportSafetyTests(FileCase):
         self.assertEqual(source.read_bytes(), original)
         self.assertTrue(list((output / "spc").glob("*.spc")))
         self.assertEqual(json.loads((output / "manifest.json").read_text(encoding="utf-8"))["status"], "partial")
+
+
+@unittest.skipIf(_default_source is None, "Tkinter is unavailable")
+class GuiDefaultTests(FileCase):
+    def test_private_rom_wins_over_an_older_root_rom(self) -> None:
+        old_source = self.save("game.sfc", b"synthetic old input")
+        private = self.root / "rom"
+        private.mkdir()
+        new_source = private / "New Game (USA).SFC"
+        new_source.write_bytes(b"synthetic new input")
+        self.assertEqual(_default_source(self.root), new_source.resolve())
+        self.assertEqual(old_source.read_bytes(), b"synthetic old input")
+        self.assertEqual(new_source.read_bytes(), b"synthetic new input")
+        self.assertEqual(_default_output(self.root, new_source), self.root / "output" / "New Game (USA)")
+
+    def test_multiple_private_inputs_require_a_choice_without_root_fallback(self) -> None:
+        self.save("game.sfc", b"synthetic old input")
+        private = self.root / "rom"
+        private.mkdir()
+        (private / "a.sfc").write_bytes(b"a")
+        (private / "b.smc").write_bytes(b"b")
+        self.assertIsNone(_default_source(self.root))
+
+    def test_unique_root_input_is_used_when_private_folder_is_empty(self) -> None:
+        (self.root / "rom").mkdir()
+        source = self.save("other.ROM", b"synthetic input")
+        self.save("readme.txt", b"not an input")
+        self.assertEqual(_default_source(self.root), source.resolve())
+
+    def test_empty_or_ambiguous_root_requires_selection_and_safe_output_name(self) -> None:
+        self.assertIsNone(_default_source(self.root))
+        self.assertEqual(_default_output(self.root, None), self.root / "output" / "soundtrack")
+        self.save("a.sfc", b"a")
+        self.save("b.sfc", b"b")
+        self.assertIsNone(_default_source(self.root))
+        self.assertEqual(_default_output(self.root, Path("CON.sfc")).name, "_CON")
 
 
 if __name__ == "__main__":

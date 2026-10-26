@@ -2,7 +2,7 @@
 
 A local Python desktop app and CLI for extracting SNES music as **SPC, WAV, MIDI, and SoundFont 2 (SF2)**, with the bank's individual **sample WAVs and JSON instrument inventory**.
 
-The current ROM loader supports the **Final Fantasy IV / Final Fantasy II US** audio layout, extracting **55 music tracks/jingles and 7 environmental cues**. Identification checks the audio program, transfer blocks, sequence pointers, and instrument tables rather than relying on the cartridge title. Extraction uses the original sequences, BRR samples, tuning, and sound program. The source ROM is never modified or uploaded.
+ROM loaders support **Final Fantasy IV / Final Fantasy II US** and **Secret of Mana US**. Identification checks the audio program, transfer blocks, sequence pointers, and instrument tables rather than relying on the cartridge title. Extraction uses the original sequences, BRR samples, tuning, and sound program. The source ROM is never modified or uploaded.
 
 ROMs, game audio, sample banks, extraction reports, and downloaded native tools are excluded from this repository. Supply your own ROM or SPC files.
 
@@ -14,9 +14,9 @@ Install Python 3.11+ with Tk support and build the native audio backends using t
 .\launch.ps1
 ```
 
-Choose the ROM, click **Analyze**, then **Extract soundtrack**. Leave length as `auto` for one converted sequence playthrough plus a 2.25-second startup/tail allowance and fade, or enter a length in seconds. FF4 sequences with tempo ramps receive an additional conservative timing allowance. A numeric length includes the final fade. Optional voice stems create eight additional WAVs per track. Export folders must be new or empty.
+Put local inputs in `rom/`, which is entirely ignored by Git. The app selects that folder's input automatically when there is exactly one; with multiple inputs, choose the desired file. Click **Analyze**, then **Extract soundtrack**. Leave length as `auto` for one converted sequence playthrough plus a 2.25-second startup/tail allowance and fade, or enter a length in seconds. Supported tempo ramps receive an additional conservative timing allowance. A numeric length includes the final fade. Optional voice stems create eight additional WAVs per track. Export folders must be new or empty.
 
-Exports are written to your chosen folder (`output/game` by default), including a machine-readable `manifest.json`. These generated files stay local and are ignored by Git. Each track has its own matched MIDI/SF2 pair. The three ending sections remain separate tracks and are not cut to an arbitrary three-minute limit.
+Exports are written to your chosen folder (`output/<input name>` by default), including a machine-readable `manifest.json`. These generated files stay local and are ignored by Git. Each track has its own matched MIDI/SF2 pair. Long ending sections are not cut to an arbitrary three-minute limit.
 
 ## Command line
 
@@ -24,14 +24,16 @@ Requires Python 3.11 or newer. Python itself needs no third-party packages. The 
 
 ```powershell
 python -m snes_synth analyze game.sfc
+python -m snes_synth analyze "rom/Secret of Mana (USA).sfc"
 python -m snes_synth doctor
 python -m snes_synth extract game.sfc -o output/new-export
+python -m snes_synth extract "rom/Secret of Mana (USA).sfc" -o output/secret-of-mana
 python -m snes_synth extract game.sfc -o output/prelude --tracks 21 --duration 120 --fade 8 --stems
 python -m snes_synth extract song.spc -o output/song
 python -m unittest discover -s tests -v
 ```
 
-Track IDs are ROM table indices, not album positions. `analyze` lists all 70 table slots, including eight silent/control slots omitted from default extraction. Decimal and `0x` hexadecimal IDs are accepted. CLI exit codes: `0` complete, `1` invalid input/setup failure, `2` partial export. A partial export preserves successful assets and lists errors per track in its manifest.
+Track IDs are ROM table indices, not album positions. `analyze` lists every table slot and identifies entries omitted from default extraction. FF4 has 70 slots, including eight silent/control slots. Secret of Mana has 64 slots, including five unused sequence aliases. Decimal and `0x` hexadecimal IDs are accepted. CLI exit codes: `0` complete, `1` invalid input/setup failure, `2` partial export. A partial export preserves successful assets and lists errors per track in its manifest.
 
 ## Audio quality and instrument use
 
@@ -64,7 +66,14 @@ The manifest includes the ROM SHA-256, loader evidence, original instrument IDs 
 
 ## Supported inputs
 
-Automatic **ROM** extraction currently supports the validated FF4/FF2 US audio layout. This is a game-specific loader, not a universal SNES music ripper. It exports song-table music, jingles, and environmental cues; individual gameplay sound effects are not separated.
+Automatic **ROM** extraction uses game-specific loaders:
+
+| ROM layout | Default entries | Notes |
+| --- | ---: | --- |
+| Final Fantasy IV / Final Fantasy II US | 62 | 55 music tracks/jingles and 7 environmental cues; original tuning and software envelopes. |
+| Secret of Mana US | 59 | Song-table music, jingles, and musical effects; original sample tuning, ADSR, and per-song host settings. |
+
+Individual gameplay sound effects outside the song table are not separated. Regional variants and ROM hacks with changed audio layouts may need additional loaders.
 
 For other games, save an **SPC** when the desired song starts in an emulator such as Snes9x, then open that SPC here. VGMTrans recognizes many additional SPC drivers. An unrecognized SPC can still be rendered by `snes_synth.backends.render_spc`, but the complete export pipeline reports failed MIDI/SF2 conversion as partial. Games that stream audio or require ongoing SNES CPU commands can need a different capture approach.
 
@@ -91,4 +100,7 @@ Keep the source checkout with its `tools` directory when running the app; the Py
 - [snes_spc](https://github.com/blarggs-audio-libraries/snes_spc), revision `ec8ee2bbe30451614c1d02a83f7af1c97d497d45`: accurate SPC700/S-DSP playback (LGPL; preserve its source/license obligations when redistributing binaries).
 - [FF4 sound disassembly](https://github.com/everything8215/ff4/tree/main/sound) and [SPC program notes](https://github.com/everything8215/ff4/blob/main/notes/ff4-spc.asm): ROM-to-ARAM layout and driver behavior.
 - [spcmake_byFF4](https://github.com/pgate1/spcmake_byFF4): independent documentation of song-start state reconstruction.
+- [Secret of Mana Randomizer](https://github.com/Moppu/SecretOfManaRandomizer): documentation of Secret of Mana's song, sample, and event tables.
+- [Secret of Mana MSU-1](https://github.com/mlarouche/SecretOfMana-MSU1): descriptive names for the original song IDs.
+- [Secret of Mana SPC disassembly](https://github.com/loveemu/vgm-disasm/blob/master/snes/Square/Minoru%20Akao/Seiken%20Densetsu%202.s): original driver initialization and transfer-complete entry point.
 - [SF2 specification](https://www.synthfont.com/SFSPEC21.PDF): sample headers and bank inventory.
